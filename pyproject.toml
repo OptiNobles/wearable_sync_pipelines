@@ -1,0 +1,34 @@
+[project]
+name = "wearable-sync-pipelines"
+version = "0.1.0"
+description = "Databricks pipelines that turn raw wearable data (bronze) into silver and gold tables"
+readme = "README.md"
+authors = [
+    { name = "Radosław Jasiewicz", email = "114445740+OptiNobles@users.noreply.github.com" }
+]
+# Databricks serverless environment version 6 runs Python 3.12.
+requires-python = ">=3.12"
+# No runtime dependencies: PySpark is provided by Databricks serverless compute and
+# must not be installed as a wheel dependency there.
+dependencies = []
+
+[project.scripts]
+# Entry points used by python_wheel_task in resources/silver_polar.yml.
+silver-polar = "wearable_sync_pipelines.jobs.silver_polar:main"
+
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
+
+[tool.uv]
+# Same uv version as wearable_sync; CI reads it from here.
+required-version = "==0.13.7"
+
+[tool.pytest.ini_options]
+# Every warning fails the tests, locally and in CI alike.
+filterwarnings = ["error"]

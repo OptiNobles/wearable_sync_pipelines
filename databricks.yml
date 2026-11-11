@@ -1,0 +1,27 @@
+# Databricks Asset Bundle: bronze -> silver -> gold pipelines for wearable_sync data.
+bundle:
+  name: wearable_sync_pipelines
+
+include:
+  - resources/*.yml
+
+artifacts:
+  wheel:
+    type: whl
+    build: uv build --wheel
+
+variables:
+  bronze_volume_path:
+    description: Raw files written by wearable_sync (read only).
+    default: /Volumes/wearable_sync_bronze/polar/files
+  silver_catalog:
+    default: wearable_sync_silver
+
+targets:
+  dev:
+    # Development mode: resources get a 'dev_<user>_' / '[dev <user>]' prefix,
+    # triggers are paused, and everything runs as the deploying user.
+    mode: development
+    default: true
+    workspace:
+      host: https://adb-7405614352809464.4.azuredatabricks.net
