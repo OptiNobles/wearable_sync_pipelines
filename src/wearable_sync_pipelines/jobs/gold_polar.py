@@ -41,7 +41,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     spark = SparkSession.builder.getOrCreate()
     spark.conf.set("spark.sql.session.timeZone", args.timezone)
     silver = _read_silver(spark, f"`{args.silver_catalog}`.`{args.silver_schema}`")
-    schemas = {"body": args.body_schema}
+    schemas = {"body": args.body_schema, "training": args.training_schema}
 
     for table in gold_tables.ALL_TABLES:
         target = f"`{args.gold_catalog}`.`{schemas[table.schema]}`.`{table.name}`"
@@ -55,6 +55,7 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--silver-schema", required=True, type=identifier)
     parser.add_argument("--gold-catalog", required=True, type=identifier)
     parser.add_argument("--body-schema", required=True, type=identifier)
+    parser.add_argument("--training-schema", required=True, type=identifier)
     parser.add_argument("--timezone", required=True, help="IANA name, e.g. Europe/Warsaw")
     return parser.parse_args(argv)
 

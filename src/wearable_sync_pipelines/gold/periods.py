@@ -15,6 +15,7 @@ from pyspark.sql import functions as F
 Granularity = Literal["day", "week", "month"]
 
 DAY_WEEK_MONTH: tuple[Granularity, ...] = ("day", "week", "month")
+WEEK_MONTH: tuple[Granularity, ...] = ("week", "month")
 
 
 def period_start(date: Column, granularity: Granularity) -> Column:
@@ -31,12 +32,14 @@ def aggregate_by_period(
     date_column: str,
     granularities: Sequence[Granularity],
     aggregations: Sequence[Column],
+    group_by: Sequence[str] = (),
 ) -> DataFrame:
-    """One row per granularity and period start, for every requested granularity."""
+    """One row per granularity, period start (and group), for every requested granularity."""
     per_granularity = [
         frame.groupBy(
             F.lit(granularity).alias("granularity"),
             period_start(F.col(date_column), granularity).alias("period_start"),
+            *group_by,
         ).agg(*aggregations)
         for granularity in granularities
     ]

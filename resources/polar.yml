@@ -12,6 +12,12 @@ resources:
       name: body
       comment: Body metrics over time (weight, VO2max), ready for dashboards.
 
+    # Gold schema for training metrics (in dev mode: dev_<user>_training).
+    training:
+      catalog_name: ${var.gold_catalog}
+      name: training
+      comment: Runs, their distance profiles and splits, and activity per period, ready for dashboards.
+
   volumes:
     # Auto Loader state (which bronze files were already processed).
     checkpoints:
@@ -83,6 +89,8 @@ resources:
               - ${var.gold_catalog}
               - --body-schema
               - ${resources.schemas.body.name}
+              - --training-schema
+              - ${resources.schemas.training.name}
               - --timezone
               - ${var.timezone}
           environment_key: default

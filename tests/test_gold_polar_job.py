@@ -12,6 +12,8 @@ VALID_ARGS = [
     "wearable_sync_gold",
     "--body-schema",
     "body",
+    "--training-schema",
+    "training",
     "--timezone",
     "Europe/Warsaw",
 ]
