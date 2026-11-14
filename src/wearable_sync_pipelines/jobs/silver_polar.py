@@ -8,18 +8,18 @@ Resilient: a bronze file the parser cannot read goes to the 'rejected_records'
 quarantine table instead of blocking the stream; the remaining files are processed,
 the checkpoint advances, and the run then fails so the problem is noticed.
 
-Run by the 'silver_polar' job (resources/silver_polar.yml) as a wheel entry point.
+Run by the 'silver' task of the 'wearable_sync_polar' job (resources/polar.yml) as a
+wheel entry point.
 """
 
 import argparse
 import logging
-import re
-import sys
 import uuid
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+from wearable_sync_pipelines.jobs.cli import configure_logging, identifier
 from wearable_sync_pipelines.polar import parsing, tables
 
 if TYPE_CHECKING:
@@ -27,8 +27,6 @@ if TYPE_CHECKING:
     from pyspark.sql.streaming import StreamingQuery
 
 logger = logging.getLogger(__name__)
-
-_IDENTIFIER = re.compile(r"^[a-z][a-z0-9_]*$")
 
 BatchHandler = Callable[["DataFrame", int], None]
 
@@ -38,7 +36,7 @@ class SilverRunError(RuntimeError):
 
 
 def main(argv: Sequence[str] | None = None) -> None:
-    _configure_logging()
+    configure_logging()
     args = _parse_args(argv)
     # Provided by Databricks serverless compute; never a wheel dependency.
     from pyspark.sql import SparkSession
@@ -89,29 +87,13 @@ def main(argv: Sequence[str] | None = None) -> None:
     logger.info("Silver Polar run %s finished", run_id)
 
 
-def _configure_logging() -> None:
-    # No-op when logging is already configured; needed in every process, including the
-    # separate one that runs foreachBatch handlers on serverless (Spark Connect).
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-        stream=sys.stdout,
-    )
-
-
 def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bronze-path", required=True, help="e.g. /Volumes/<catalog>/polar/files")
-    parser.add_argument("--catalog", required=True, type=_identifier, help="silver catalog")
-    parser.add_argument("--schema", required=True, type=_identifier, help="silver schema")
+    parser.add_argument("--catalog", required=True, type=identifier, help="silver catalog")
+    parser.add_argument("--schema", required=True, type=identifier, help="silver schema")
     parser.add_argument("--checkpoint-path", required=True, help="Auto Loader checkpoints (volume)")
     return parser.parse_args(argv)
-
-
-def _identifier(value: str) -> str:
-    if not _IDENTIFIER.match(value):
-        raise argparse.ArgumentTypeError(f"invalid Unity Catalog name: {value!r}")
-    return value
 
 
 def _create_table_if_missing(spark: "SparkSession", schema: str, table: tables.Table) -> None:
@@ -153,7 +135,7 @@ def _start_ingest(
 
 def _exercise_handler(schema: str, run_id: str) -> BatchHandler:
     def handle(batch: "DataFrame", batch_id: int) -> None:
-        _configure_logging()
+        configure_logging()
         exercises, zones, samples, rejected = [], [], [], []
         for file in batch.collect():
             try:
@@ -185,7 +167,7 @@ def _exercise_handler(schema: str, run_id: str) -> BatchHandler:
 
 def _body_measurement_handler(schema: str, run_id: str) -> BatchHandler:
     def handle(batch: "DataFrame", batch_id: int) -> None:
-        _configure_logging()
+        configure_logging()
         rows, rejected = [], []
         for file in batch.collect():
             try:
