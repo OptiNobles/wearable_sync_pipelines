@@ -6,10 +6,10 @@ from typing import Literal
 
 from pyspark.sql import DataFrame
 
-from wearable_sync_pipelines.gold import body
+from wearable_sync_pipelines.gold import body, training
 
 # Gold schemas, by subject; the job maps each to its (target-specific) schema name.
-GoldSchema = Literal["body"]
+GoldSchema = Literal["body", "training"]
 
 
 @dataclass(frozen=True)
@@ -50,4 +50,75 @@ VO2MAX_BY_PERIOD = GoldTable(
     build=lambda silver: body.vo2max_by_period(silver.body_measurements),
 )
 
-ALL_TABLES = (WEIGHT_BY_PERIOD, VO2MAX_BY_PERIOD)
+
+def _runs(silver: Silver) -> DataFrame:
+    return training.runs(silver.exercises, silver.exercise_hr_zones, silver.exercise_samples)
+
+
+RUNS = GoldTable(
+    schema="training",
+    name="runs",
+    comment=(
+        "One row per run (sport RUNNING): distance, duration, pace (min/km), heart rate, "
+        "cadence (stops excluded), Polar running index and loads, and time and share of "
+        "time in heart rate zones 1-5. run_date is the local date."
+    ),
+    build=_runs,
+)
+
+RUN_PROFILE = GoldTable(
+    schema="training",
+    name="run_profile",
+    comment=(
+        f"Each run in {training.PROFILE_SEGMENT_M} m segments: time, distance actually "
+        "covered, pace, heart rate and cadence. For heart rate and pace profiles over "
+        "distance and for comparing runs."
+    ),
+    build=lambda silver: training.run_segments(
+        silver.exercises, silver.exercise_samples, training.PROFILE_SEGMENT_M
+    ),
+)
+
+RUN_SPLITS = GoldTable(
+    schema="training",
+    name="run_splits",
+    comment=(
+        "Kilometre splits of each run: time, distance actually covered (shorter for the "
+        "last, partial split), pace, heart rate and cadence."
+    ),
+    build=lambda silver: training.run_segments(
+        silver.exercises, silver.exercise_samples, training.SPLIT_SEGMENT_M
+    ),
+)
+
+RUNNING_BY_PERIOD = GoldTable(
+    schema="training",
+    name="running_by_period",
+    comment=(
+        "Running per week and month (granularity column): number of runs, distance, "
+        "time, pace, duration-weighted heart rate, running index, loads and time in heart "
+        "rate zones. Local dates, weeks start on Monday."
+    ),
+    build=lambda silver: training.running_by_period(_runs(silver)),
+)
+
+OTHER_SESSIONS_BY_PERIOD = GoldTable(
+    schema="training",
+    name="other_sessions_by_period",
+    comment=(
+        "Non-running sessions per week and month (granularity column) by activity "
+        "(Polar detailed sport, e.g. STRENGTH_TRAINING): number of sessions and total "
+        "duration. Local dates, weeks start on Monday."
+    ),
+    build=lambda silver: training.other_sessions_by_period(silver.exercises),
+)
+
+ALL_TABLES = (
+    WEIGHT_BY_PERIOD,
+    VO2MAX_BY_PERIOD,
+    RUNS,
+    RUN_PROFILE,
+    RUN_SPLITS,
+    RUNNING_BY_PERIOD,
+    OTHER_SESSIONS_BY_PERIOD,
+)

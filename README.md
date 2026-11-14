@@ -10,6 +10,8 @@ silver  wearable_sync_silver.polar.{exercises, exercise_hr_zones, exercise_sampl
   │                                rejected_records}
   │       task gold (after silver)
 gold    wearable_sync_gold.body.{weight_by_period, vo2max_by_period}
+        wearable_sync_gold.training.{runs, run_profile, run_splits, running_by_period,
+                                     other_sessions_by_period}
 ```
 
 Silver:
@@ -32,9 +34,19 @@ Gold:
   fails silver, but the other files are merged and reach gold. Gold reflects whatever
   silver holds; if silver stopped partway (cancelled, timed out), the next run's full
   rebuild fills in what is missing.
-- **Ready for dashboards**: day, week and month aggregates live in one table with a
-  `granularity` column. Dates are local (`timezone` variable, `Europe/Warsaw`), weeks
-  start on Monday.
+- **Ready for dashboards**: all granularities of a metric live in one table with a
+  `granularity` column: day, week and month for `body`, week and month for the
+  `training` period tables. Dates are local (`timezone` variable, `Europe/Warsaw`),
+  weeks start on Monday.
+- **Running**: runs are exercises with sport `RUNNING`. Paces (min/km) are always
+  time / distance; heart rate per period is weighted by duration; cadence excludes
+  stops (0 spm). `run_profile` (100 m) and `run_splits` (1 km) charge each sample with
+  the time and distance to the next one, so a partial last split has its real distance
+  and a comparable pace. Segment lengths are accurate to one sampling step (3-4 m at
+  1 s), because a step that crosses a boundary counts towards the earlier segment.
+  Segment heart rate and cadence are time-weighted, and samples without a distance
+  (no GPS fix) keep the last known one. Other sessions are grouped by Polar's detailed
+  sport (e.g. `STRENGTH_TRAINING`).
 - **Testable**: transformations are PySpark functions (`src/wearable_sync_pipelines/gold/`),
   unit-tested on local Spark with fictional data.
 
@@ -63,8 +75,8 @@ databricks bundle run -t dev wearable_sync_polar # run it once
 
 | Target | Schemas | Trigger | Runs as | Deployed by |
 | --- | --- | --- | --- | --- |
-| `dev` | `dev_<user>_polar`, `dev_<user>_body` | paused | the deploying user | you, from your machine |
-| `prod` | `polar`, `body` | active (new bronze files) | `id-wearable-sync-pipelines` | GitHub Actions from `main` |
+| `dev` | `dev_<user>_polar`, `dev_<user>_body`, `dev_<user>_training` | paused | the deploying user | you, from your machine |
+| `prod` | `polar`, `body`, `training` | active (new bronze files) | `id-wearable-sync-pipelines` | GitHub Actions from `main` |
 
 The job runs in serverless standard performance mode (slower start, fewer DBUs) and is
 tagged `project: wearable_sync` for cost reporting in `system.billing.usage`.
