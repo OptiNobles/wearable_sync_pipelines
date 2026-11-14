@@ -1,4 +1,7 @@
 # Databricks Asset Bundle: bronze -> silver -> gold pipelines for wearable_sync data.
+#
+# The workspace URL is not stored here (the repository is public): it comes from the
+# DATABRICKS_HOST environment variable or the default profile in ~/.databrickscfg.
 bundle:
   name: wearable_sync_pipelines
 
@@ -16,6 +19,12 @@ variables:
     default: /Volumes/wearable_sync_bronze/polar/files
   silver_catalog:
     default: wearable_sync_silver
+  run_as_service_principal:
+    description: >-
+      Application ID of the service principal that deploys and runs the prod target
+      (id-wearable-sync-pipelines; in pull request validation, the CI identity).
+      Set by CI through BUNDLE_VAR_run_as_service_principal. No default: the prod
+      target fails fast when it is missing.
 
 targets:
   dev:
@@ -23,5 +32,18 @@ targets:
     # triggers are paused, and everything runs as the deploying user.
     mode: development
     default: true
+    variables:
+      # dev runs as the deploying user; the CLI still requires every variable to
+      # have a value in every target.
+      run_as_service_principal: not-used-in-dev
+
+  prod:
+    # Production mode: no name prefixes, active triggers, and deployment checks
+    # (e.g. no development clusters). Deployed only by CI from main.
+    mode: production
     workspace:
-      host: https://adb-7405614352809464.4.azuredatabricks.net
+      # One fixed location, owned by the deploying/run_as service principal, so only
+      # one copy of the prod bundle can ever exist.
+      root_path: /Workspace/Users/${var.run_as_service_principal}/.bundle/${bundle.name}/${bundle.target}
+    run_as:
+      service_principal_name: ${var.run_as_service_principal}

@@ -25,6 +25,15 @@ gold    wearable_sync_gold.*
 Requirements: [uv](https://docs.astral.sh/uv/) (version pinned in `pyproject.toml`) and
 the Databricks CLI, logged in with `az login` (Azure CLI authentication).
 
+The workspace URL is not stored in this public repository. Put it in the default
+profile of `~/.databrickscfg` once:
+
+```ini
+[DEFAULT]
+host      = https://<workspace>.azuredatabricks.net
+auth_type = azure-cli
+```
+
 ```powershell
 uv run --locked pytest -q                 # unit tests
 databricks bundle validate -t dev         # check the bundle configuration
@@ -32,7 +41,20 @@ databricks bundle deploy -t dev           # deploy a personal dev copy
 databricks bundle run -t dev silver_polar # run it once
 ```
 
-The `dev` target writes to its own schema (`dev_<user>_polar`), keeps triggers paused
-and runs as the deploying user. A `prod` target (schema `polar`, active file-arrival
-trigger, running as a dedicated service principal) is added together with that identity
-and CI/CD; until then the pipeline runs only in dev.
+| Target | Schema | Trigger | Runs as | Deployed by |
+| --- | --- | --- | --- | --- |
+| `dev` | `dev_<user>_polar` | paused | the deploying user | you, from your machine |
+| `prod` | `polar` | active (new bronze files) | `id-wearable-sync-pipelines` | GitHub Actions from `main` |
+
+## CI/CD
+
+`.github/workflows/ci-cd.yml`, signing in to Azure and Databricks with GitHub OIDC
+(no stored credentials):
+
+- **Pull requests**: `test` (pytest) and `validate` (`databricks bundle validate -t prod`)
+  as a CI identity that has workspace access but no access to any data.
+- **Push to `main`**: the same checks, then `databricks bundle deploy -t prod` in the
+  `production` environment as `id-wearable-sync-pipelines`.
+
+Identities, grants, the repository settings and the OIDC trust are managed in
+`cloud_infra` (`wearable_sync/platform`, `wearable_sync/catalog`, `wearable_sync/github`).

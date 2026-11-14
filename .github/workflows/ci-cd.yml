@@ -1,0 +1,117 @@
+# CI on every pull request; deploy the bundle on every push to main.
+#
+#   pull_request -> test + validate
+#   push to main -> test + validate -> deploy (databricks bundle deploy -t prod)
+#
+# Third-party actions are pinned to commit SHAs (tags can be moved); the comment next
+# to each SHA is the release it corresponds to.
+
+name: CI/CD
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Least privilege by default; jobs that need more ask for it explicitly.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Superseded PR runs are cancelled; deployments from main always run to the end.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DATABRICKS_CLI_VERSION: "0.299.0"
+
+jobs:
+  # 'test' and 'validate' are the required status checks of the repository ruleset.
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # No 'version' input: setup-uv installs [tool.uv] required-version from pyproject.toml.
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: true
+
+      - run: uv run --locked pytest -q
+
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write # OIDC token for azure/login
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # CI identity: Databricks workspace access only, no access to any data, so code
+      # from a pull request never runs with production privileges.
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CI_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - uses: databricks/setup-cli@2da6132749245fbffb3c10d57cec219de3669967 # v1.26.0
+        with:
+          version: ${{ env.DATABRICKS_CLI_VERSION }}
+
+      # The prod configuration is validated with the CI identity standing in as run_as:
+      # it checks everything prod-specific while touching only the CI identity's own
+      # workspace folder. The real run_as identity is used only by deploy.
+      - name: Validate the prod target
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_AUTH_TYPE: azure-cli
+          BUNDLE_VAR_run_as_service_principal: ${{ secrets.AZURE_CI_CLIENT_ID }}
+        run: databricks bundle validate -t prod
+
+  deploy:
+    needs: [test, validate]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # Azure trusts this identity's GitHub tokens only for this environment, and the
+    # environment only accepts deployments from main (both configured in cloud_infra).
+    environment: production
+    permissions:
+      contents: read
+      id-token: write # OIDC token for azure/login; no secret is stored anywhere
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The bundle builds the wheel with 'uv build' during deploy.
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: true
+
+      # Deploys as id-wearable-sync-pipelines, the same identity the jobs run as.
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - uses: databricks/setup-cli@2da6132749245fbffb3c10d57cec219de3669967 # v1.26.0
+        with:
+          version: ${{ env.DATABRICKS_CLI_VERSION }}
+
+      - name: Deploy the prod target
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_AUTH_TYPE: azure-cli
+          # Deployer and run_as are the same identity.
+          BUNDLE_VAR_run_as_service_principal: ${{ secrets.AZURE_CLIENT_ID }}
+        run: databricks bundle deploy -t prod

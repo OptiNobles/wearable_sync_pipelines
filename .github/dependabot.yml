@@ -1,0 +1,27 @@
+# Action SHAs and uv.lock are pinned, so Dependabot keeps the pins current. Each update
+# arrives as a pull request that must pass the required 'test' and 'validate' checks.
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
+
+  # Python dependencies (pyproject.toml + uv.lock).
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      python-dependencies:
+        patterns: ["*"]
+    commit-message:
+      prefix: "deps"
