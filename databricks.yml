@@ -19,6 +19,11 @@ variables:
     default: /Volumes/wearable_sync_bronze/polar/files
   silver_catalog:
     default: wearable_sync_silver
+  gold_catalog:
+    default: wearable_sync_gold
+  timezone:
+    description: Time zone of local dates in gold (IANA name).
+    default: Europe/Warsaw
   run_as_service_principal:
     description: >-
       Application ID of the service principal that deploys and runs the prod target

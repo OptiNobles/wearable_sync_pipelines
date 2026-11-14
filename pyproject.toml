@@ -13,8 +13,9 @@ requires-python = ">=3.12"
 dependencies = []
 
 [project.scripts]
-# Entry points used by python_wheel_task in resources/silver_polar.yml.
+# Entry points used by python_wheel_task in resources/polar.yml.
 silver-polar = "wearable_sync_pipelines.jobs.silver_polar:main"
+gold-polar = "wearable_sync_pipelines.jobs.gold_polar:main"
 
 [build-system]
 requires = ["uv_build>=0.13.7,<0.14.0"]
@@ -22,6 +23,9 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    # Local Spark for tests of the gold transformations (needs Java 17, like serverless
+    # environment 6). Never a runtime dependency: Databricks provides PySpark.
+    "pyspark>=4.2.1,<4.3",
     "pytest>=9.2.0",
 ]
 

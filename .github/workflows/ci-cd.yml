@@ -41,6 +41,12 @@ jobs:
         with:
           enable-cache: true
 
+      # Local Spark for the gold tests; the same Java version as serverless environment 6.
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: microsoft
+          java-version: "17"
+
       - run: uv run --locked pytest -q
 
   validate:

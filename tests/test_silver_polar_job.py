@@ -42,8 +42,3 @@ def test_last_row_per_key_wins() -> None:
         {"exercise_id": "A", "elapsed_s": 0, "hr_bpm": 120},
         {"exercise_id": "A", "elapsed_s": 1, "hr_bpm": 110},
     ]
-
-
-def test_module_imports_without_pyspark() -> None:
-    # PySpark exists only on Databricks; importing the job module locally must work.
-    assert callable(silver_polar.main)
